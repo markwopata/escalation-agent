@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Environment / secrets — NEVER commit
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Live database (contains PII: customer names, internal Slack/Front content)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Reports / spike outputs (contain real customer + employee data)
+reports/
+
+# OS / editor cruft
+.DS_Store
+*.log
+.vscode/
+.idea/
+
+# Plans / scratch (Claude Code working files)
+.claude/plans/
