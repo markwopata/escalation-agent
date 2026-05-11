@@ -215,14 +215,24 @@ export async function revalidateSlackEscalation(db, esc, router) {
   // premise even if the summary doesn't explicitly claim "no reply."
   // Thresholds chosen to require real engagement, not single follow-up:
   //   - >=5 thread replies, OR
-  //   - >=3 distinct other authors in channel-history within 4h
+  //   - >=3 distinct other authors in channel-history within 4h, OR
+  //   - >=2 thread replies AND ALL replies within 1h of parent (fast-resolve
+  //     pattern — e.g. #5141 T3 CC parts: parent at 21:56, 3 replies done by
+  //     22:13, field handled inside 17min; not exec territory)
   // Field doing their job in a project channel = field has ownership = exec
   // doesn't need to step in unless it stalls. If it does stall, the next
   // digest's revalidation will see the engagement go quiet and re-deliver.
-  if (!shouldDrop && (replyCount >= 5 || subsequentEngagement >= 3)) {
+  const parentTsNumForFast = Number(parent.slack_ts);
+  const oneHourAfterParent = parentTsNumForFast + 3600;
+  const fastResolveAllRepliesWithin1h = replyCount >= 2 && replies.every(r => Number(r.ts) <= oneHourAfterParent);
+
+  if (!shouldDrop && (replyCount >= 5 || subsequentEngagement >= 3 || fastResolveAllRepliesWithin1h)) {
     shouldDrop = true;
     if (replyCount >= 5) {
       dropReason = `active engagement counter-signal: thread has ${replyCount} replies (latest by ${latestReplyAuthor ?? "?"} at ${latestReplyTsIso?.slice(0, 16).replace("T", " ")}) — field has ownership`;
+    } else if (fastResolveAllRepliesWithin1h) {
+      const minutesToLatest = Math.round((Number(latestReply.ts) - parentTsNumForFast) / 60);
+      dropReason = `fast-resolve counter-signal: thread had ${replyCount} replies within ${minutesToLatest}min of parent (latest by ${latestReplyAuthor ?? "?"}) — field handled it immediately`;
     } else {
       dropReason = `active engagement counter-signal: ${subsequentEngagement} other authors engaged in channel within 4h of parent (latest by ${latestSubsequentAuthor ?? "?"} at ${latestSubsequentTsIso?.slice(0, 16).replace("T", " ")}) — field has ownership`;
     }
